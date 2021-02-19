@@ -1,26 +1,22 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using System.Linq;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.OpenApi.Models;
 using Spark.Engine;
 using Spark.Engine.Extensions;
-using Spark.Mongo.Extensions;
 using Spark.Web.Data;
-using Spark.Web.Models.Config;
-using Spark.Web.Services;
-using Spark.Web.Hubs;
-using Microsoft.AspNetCore.ResponseCompression;
-using System.Linq;
-using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Mvc.Formatters;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.Extensions.Hosting;
 using Spark.Engine.Formatters;
+using Spark.Web.Services;
 
 namespace Spark.Web
 {
@@ -45,12 +41,6 @@ namespace Spark.Web
 
             StoreSettings storeSettings = new StoreSettings();
             Configuration.Bind("StoreSettings", storeSettings);
-
-            // Read examples settings from config
-            ExamplesSettings examplesSettings = new ExamplesSettings();
-            Configuration.Bind("ExamplesSettings", examplesSettings);
-            services.Configure<ExamplesSettings>(options => Configuration.GetSection("ExamplesSettings").Bind(options));
-            services.AddSingleton<ExamplesSettings>(examplesSettings);
 
             // Configure cookie policy
             services.Configure<CookiePolicyOptions>(options =>
@@ -90,9 +80,6 @@ namespace Spark.Web
                     policy.AllowAnyHeader();
                 }));
 
-            // Sets up the MongoDB store
-            services.AddMongoFhirStore(storeSettings);
-
             // AddFhir also calls AddMvcCore
             services.AddFhir(sparkSettings);
 
@@ -110,8 +97,6 @@ namespace Spark.Web
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "Spark API", Version = "v1" });
             });
-
-            services.AddSignalR();
 
             // Make validation errors to be returned as application/json or application/xml
             // instead of application/problem+json and application/problem+xml.
@@ -162,10 +147,6 @@ namespace Spark.Web
 
             app.UseRouting();
 
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapHub<MaintenanceHub>("/maintenanceHub");
-            });
 
             // UseFhir also calls UseMvc
             app.UseFhir(r => r.MapRoute(name: "default", template: "{controller}/{action}/{id?}", defaults: new { controller = "Home", action = "Index" }));

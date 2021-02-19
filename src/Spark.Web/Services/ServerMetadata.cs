@@ -3,7 +3,6 @@ using Hl7.Fhir.Rest;
 using Spark.Engine;
 using Spark.Engine.Service.FhirServiceExtensions;
 using Spark.Service;
-using Spark.Store.Mongo;
 
 namespace Spark.Web.Services
 {
