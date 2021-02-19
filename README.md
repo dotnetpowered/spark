@@ -1,8 +1,11 @@
-|DSTU2|STU3|R4
-|:-:|:-:|:-:
-|![Tests](https://github.com/FirelyTeam/spark/workflows/Tests/badge.svg?branch=develop)|![Tests](https://github.com/FirelyTeam/spark/workflows/Tests/badge.svg?branch=stu3%2Fdevelop)|![Tests](https://github.com/FirelyTeam/spark/workflows/Tests/badge.svg?branch=r4%2Fdevelop)
-|![Release](https://github.com/FirelyTeam/spark/workflows/Release/badge.svg)|![Release](https://github.com/FirelyTeam/spark/workflows/Release/badge.svg)|![Release](https://github.com/FirelyTeam/spark/workflows/Release/badge.svg)
-|![Docker Release](https://github.com/FirelyTeam/spark/workflows/Docker%20Release/badge.svg)|![Docker Release](https://github.com/FirelyTeam/spark/workflows/Docker%20Release/badge.svg)|![Docker Release](https://github.com/FirelyTeam/spark/workflows/Docker%20Release/badge.svg)
+Spark-Lite
+==========
+Spark Lite is a stripped down fork of Spark meant for buidling a server with minimal dependencies.
+
+It removes from the Spark repo:
+- Storage implementations
+- Maintenance functions specific to storage implementation
+- SignalR 
 
 Spark
 =====
@@ -19,18 +22,6 @@ We also welcome anyone who wants to support this effort and help us make Spark a
 platform and playground for FHIR.
 
 **DISCLAIMER: The web projects Spark.Web and Spark are meant as reference implementations and should never be used out of the box in a production environment without adding as a minimum security features.**
-
-## Quickstart
-The easiest way to test Spark FHIR server is by using Docker. Make sure you have installed [Docker](https://docs.docker.com/install/). On Linux you will need to install [Docker Compose](https://docs.docker.com/compose/install/) as well. After installing Docker you could run Spark server by running one of the following commands, found below, for your preferred FHIR Version. Remember to replace the single quotes with double quotes on Windows. The Spark FHIR Server will be available after startup at `http://localhost:5555`.
-
-#### DSTU2
-`curl 'https://raw.githubusercontent.com/FirelyTeam/spark/master/.docker/docker-compose.example.yml' > docker-compose.yml && docker-compose up`
-
-#### STU3
-`curl 'https://raw.githubusercontent.com/FirelyTeam/spark/stu3/master/.docker/docker-compose.example.yml' > docker-compose.yml && docker-compose up`
-
-#### R4
-`curl 'https://raw.githubusercontent.com/FirelyTeam/spark/r4/master/.docker/docker-compose.example.yml' > docker-compose.yml && docker-compose up`
 
 ## Versions
 
