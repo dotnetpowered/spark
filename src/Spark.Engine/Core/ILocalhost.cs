@@ -6,16 +6,16 @@
  * available at https://raw.github.com/furore-fhir/spark/master/LICENSE
  */
 
+using System;
 
-namespace Spark.Core
+namespace Spark.Engine.Core
 {
-    // DSTU2: tags
-    /*
-    public interface ITagStore
+    public interface ILocalhost
     {
-        IEnumerable<Tag> Tags();
-        IEnumerable<Tag> Tags(string resourcetype);
-        //IEnumerable<Uri> Find(params Tag[] tags);
+        Uri DefaultBase { get; }
+        Uri Absolute(Uri uri);
+        bool IsBaseOf(Uri uri);
+        Uri GetBaseOf(Uri uri);
     }
-    */
+    
 }

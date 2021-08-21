@@ -87,8 +87,15 @@ namespace Spark.Formatters
                             writer.WriteLine("    Summary only<br/>");
                         if (ps.AllKeys.Contains(FhirParameter.COUNT))
                             writer.WriteLine(string.Format("    Count: {0}<br/>", ps[FhirParameter.COUNT]));
-                        if (ps.AllKeys.Contains(FhirParameter.SNAPSHOT_INDEX))
+                        if (ps.AllKeys.Contains(FhirParameter.OFFSET))
+                        {
+                            writer.WriteLine(string.Format("    From RowNum: {0}<br/>", ps[FhirParameter.OFFSET]));
+                        }
+                        else if (ps.AllKeys.Contains(FhirParameter.SNAPSHOT_INDEX))
+                        {
+                            // Kept as backwards compatibility for the "start" parameter which was used as an offset
                             writer.WriteLine(string.Format("    From RowNum: {0}<br/>", ps[FhirParameter.SNAPSHOT_INDEX]));
+                        }
                         if (ps.AllKeys.Contains(FhirParameter.SINCE))
                             writer.WriteLine(string.Format("    Since: {0}<br/>", ps[FhirParameter.SINCE]));
 
@@ -149,7 +156,7 @@ namespace Spark.Formatters
                                 else
                                     writer.WriteLine(string.Format("Blank Text: {0}<br/>", item.Resource.ExtractKey().ToUriString()));
                             }
-                            else 
+                            else
                             {
                                 writer.WriteLine("This is not a domain resource");
                             }
@@ -164,7 +171,7 @@ namespace Spark.Formatters
                     string org = resource.ResourceBase + "/" + resource.TypeName + "/" + resource.Id;
                     writer.WriteLine(string.Format("Retrieved: {0}<hr/>", org));
 
-                    string text = (resource.Text != null) ? resource.Text.Div : null;
+                    string text = resource.Text?.Div;
                     writer.Write(text);
                     writer.WriteLine("<hr/>");
 

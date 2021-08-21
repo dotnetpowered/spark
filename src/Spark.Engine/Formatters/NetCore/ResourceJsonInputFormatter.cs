@@ -6,13 +6,13 @@ using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.WebUtilities;
 using Newtonsoft.Json;
 using Spark.Core;
+using Spark.Engine.Core;
 using Spark.Engine.Extensions;
 using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Spark.Engine.Formatters
@@ -33,13 +33,13 @@ namespace Spark.Engine.Formatters
             SupportedEncodings.Clear();
             SupportedEncodings.Add(Encoding.UTF8);
 
-            SupportedMediaTypes.Add("application/json");
-            SupportedMediaTypes.Add("application/fhir+json");
-            SupportedMediaTypes.Add("application/json+fhir");
-            SupportedMediaTypes.Add("text/json");
+            foreach (var mediaType in FhirMediaType.JsonMimeTypes)
+            {
+                SupportedMediaTypes.Add(mediaType);
+            }
         }
 
-        [Obsolete("This constructor is obsolete and will be removed in a future version.")]
+        [Obsolete("This constructor is obsolete. Please use constructor with signature ctor(FhirJsonParser, ArrayPool<char>)")]
         public ResourceJsonInputFormatter()
         {
             _parser = new FhirJsonParser();
@@ -48,10 +48,10 @@ namespace Spark.Engine.Formatters
             SupportedEncodings.Clear();
             SupportedEncodings.Add(Encoding.UTF8);
 
-            SupportedMediaTypes.Add("application/json");
-            SupportedMediaTypes.Add("application/fhir+json");
-            SupportedMediaTypes.Add("application/json+fhir");
-            SupportedMediaTypes.Add("text/json");
+            foreach (var mediaType in FhirMediaType.JsonMimeTypes)
+            {
+                SupportedMediaTypes.Add(mediaType);
+            }
         }
 
         protected override bool CanReadType(Type type)
@@ -80,21 +80,19 @@ namespace Spark.Engine.Formatters
 
             try
             {
-                using (var streamReader = context.ReaderFactory(request.Body, encoding))
+                using TextReader streamReader = context.ReaderFactory(request.Body, encoding);
+                using JsonTextReader jsonReader = new JsonTextReader(streamReader)
                 {
-                    using (var jsonReader = new JsonTextReader(streamReader))
-                    {
-                        jsonReader.DateParseHandling = DateParseHandling.None;
-                        jsonReader.FloatParseHandling = FloatParseHandling.Decimal;
-                        jsonReader.ArrayPool = _charPool;
-                        jsonReader.CloseInput = false;
+                    DateParseHandling = DateParseHandling.None,
+                    FloatParseHandling = FloatParseHandling.Decimal,
+                    ArrayPool = _charPool,
+                    CloseInput = false
+                };
 
-                        var resource = _parser.Parse<Resource>(jsonReader);
-                        context.HttpContext.AddResourceType(resource.GetType());
+                var resource = _parser.Parse<Resource>(jsonReader);
+                context.HttpContext.AddResourceType(resource.GetType());
 
-                        return await InputFormatterResult.SuccessAsync(resource);
-                    }
-                }
+                return await InputFormatterResult.SuccessAsync(resource);
             }
             catch (FormatException exception)
             {

@@ -1,4 +1,12 @@
-﻿using Hl7.Fhir.FhirPath;
+﻿/* 
+ * Copyright (c) 2021, Incendi (info@incendi.no) and contributors
+ * See the file CONTRIBUTORS for details.
+ * 
+ * This file is licensed under the BSD 3-Clause license
+ * available at https://raw.githubusercontent.com/FirelyTeam/spark/stu3/master/LICENSE
+ */
+
+using Hl7.Fhir.FhirPath;
 using Hl7.Fhir.Model;
 using Spark.Engine.Core;
 using Spark.Engine.Extensions;
@@ -17,9 +25,9 @@ namespace Spark.Engine.Service.FhirServiceExtensions
 {
     public class IndexService : IIndexService
     {
-        private IFhirModel _fhirModel;
-        private IIndexStore _indexStore;
-        private ElementIndexer _elementIndexer;
+        private readonly IFhirModel _fhirModel;
+        private readonly IIndexStore _indexStore;
+        private readonly ElementIndexer _elementIndexer;
 
         public IndexService(IFhirModel fhirModel, IIndexStore indexStore, ElementIndexer elementIndexer)
         {
@@ -28,16 +36,20 @@ namespace Spark.Engine.Service.FhirServiceExtensions
             _elementIndexer = elementIndexer;
         }
 
-        [Obsolete("Use Async method version instead")]
         public void Process(Entry entry)
         {
-            Task.Run(() => ProcessAsync(entry)).GetAwaiter().GetResult();
-        }
-
-        [Obsolete("Use Async method version instead")]
-        public IndexValue IndexResource(Resource resource, IKey key)
-        {
-            return Task.Run(() => IndexResourceAsync(resource, key)).GetAwaiter().GetResult();
+            if (entry.HasResource())
+            {
+                IndexResource(entry.Resource, entry.Key);
+            }
+            else
+            {
+                if (entry.IsDeleted())
+                {
+                   _indexStore.Delete(entry);
+                }
+                else throw new Exception("Entry is neither resource nor deleted");
+            }
         }
 
         public async Task ProcessAsync(Entry entry)
@@ -54,6 +66,14 @@ namespace Spark.Engine.Service.FhirServiceExtensions
                 }
                 else throw new Exception("Entry is neither resource nor deleted");
             }
+        }
+
+        public IndexValue IndexResource(Resource resource, IKey key)
+        {
+            Resource resourceToIndex = MakeContainedReferencesUnique(resource);
+            IndexValue indexValue = IndexResourceRecursively(resourceToIndex, key);
+            _indexStore.Save(indexValue);
+            return indexValue;
         }
 
         public async Task<IndexValue> IndexResourceAsync(Resource resource, IKey key)
@@ -90,15 +110,14 @@ namespace Spark.Engine.Service.FhirServiceExtensions
                 {
                     resolvedValues = resource.SelectNew(searchParameter.Expression);
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     // TODO: log error!
                     resolvedValues = new List<Base>();
                 }
                 foreach (var value in resolvedValues)
                 {
-                    Element element = value as Element;
-                    if (element == null) continue;
+                    if (!(value is Element element)) continue;
 
                     indexValue.Values.AddRange(_elementIndexer.Map(element));
                 }
@@ -106,8 +125,8 @@ namespace Spark.Engine.Service.FhirServiceExtensions
                     rootIndexValue.Values.Add(indexValue);
             }
 
-            if (resource is DomainResource)
-                AddContainedResources((DomainResource)resource, rootIndexValue);
+            if (resource is DomainResource domainResource)
+                AddContainedResources(domainResource, rootIndexValue);
 
             return rootIndexValue;
         }

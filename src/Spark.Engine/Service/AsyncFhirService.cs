@@ -3,36 +3,43 @@ using Hl7.Fhir.Rest;
 using Spark.Engine.Core;
 using Spark.Engine.FhirResponseFactory;
 using Spark.Engine.Service.FhirServiceExtensions;
-using Spark.Engine.Storage;
 using Spark.Service;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
-using Spark.Core;
 using Spark.Engine.Extensions;
 using Task = System.Threading.Tasks.Task;
 
 namespace Spark.Engine.Service
 {
-    public class AsyncFhirService : ExtendableWith<IFhirServiceExtension>, IAsyncFhirService, IInteractionHandler
+    public class AsyncFhirService : FhirServiceBase, IAsyncFhirService, IInteractionHandler
     {
-        // CCR: FhirService now implements InteractionHandler that is used by the TransactionService to actually perform the operation. 
-        // This creates a circular reference that is solved by sending the handler on each call. 
-        // A future step might be to split that part into a different service (maybe StorageService?)
-
         private readonly IFhirResponseFactory _responseFactory;
-        private readonly ITransfer _transfer;
         private readonly ICompositeServiceListener _serviceListener;
 
         public AsyncFhirService(
             IFhirServiceExtension[] extensions,
-            IFhirResponseFactory responseFactory, // TODO: can we remove this dependency?
-            ITransfer transfer,
-            ICompositeServiceListener serviceListener = null) // TODO: can we remove this dependency? - CCR
+            IFhirResponseFactory responseFactory,
+            ICompositeServiceListener serviceListener = null)
         {
             _responseFactory = responseFactory ?? throw new ArgumentNullException(nameof(responseFactory));
-            _transfer = transfer ?? throw new ArgumentNullException(nameof(transfer));
+            _serviceListener = serviceListener ?? throw new ArgumentNullException(nameof(serviceListener));
+
+            foreach (var serviceExtension in extensions)
+            {
+                AddExtension(serviceExtension);
+            }
+        }
+
+        [Obsolete("This constructor is obsolete. Please use constructor with signature ctor(IFhirServiceExtension[], IFhirResponseFactory, ICompositeServiceListener")]
+        public AsyncFhirService(
+            IFhirServiceExtension[] extensions,
+            IFhirResponseFactory responseFactory,
+            ITransfer transfer,
+            ICompositeServiceListener serviceListener = null)
+        {
+            _responseFactory = responseFactory ?? throw new ArgumentNullException(nameof(responseFactory));
             _serviceListener = serviceListener ?? throw new ArgumentNullException(nameof(serviceListener));
 
             foreach (var serviceExtension in extensions)
@@ -70,8 +77,8 @@ namespace Spark.Engine.Service
         {
             var searchStore = GetFeature<ISearchService>();
             var transactionService = GetFeature<ITransactionService>();
-            var deleteOperation = await ResourceManipulationOperationFactory.CreateDeleteAsync(key, searchStore, SearchParams.FromUriParamList(parameters)).ConfigureAwait(false);
-            return await transactionService.HandleTransactionAsync(deleteOperation, this)
+            var operation = await ResourceManipulationOperationFactory.CreateDeleteAsync(key, searchStore, SearchParams.FromUriParamList(parameters)).ConfigureAwait(false);
+            return await transactionService.HandleTransactionAsync(operation, this)
                 .ConfigureAwait(false) ?? Respond.WithCode(HttpStatusCode.NotFound);
         }
 
@@ -226,19 +233,34 @@ namespace Spark.Engine.Service
                 : await PutAsync(key, resource).ConfigureAwait(false);
         }
 
-        public Task<FhirResponse> ValidateOperationAsync(IKey key, Resource resource)
+        public async Task<FhirResponse> PatchAsync(IKey key, Parameters parameters)
         {
-            if (resource == null)
+            if (parameters == null)
             {
-                throw Error.BadRequest("Validate needs a Resource in the body payload");
+                return new FhirResponse(HttpStatusCode.BadRequest);
+            }
+            var resourceStorage = GetFeature<IResourceStorageService>();
+            var current = await resourceStorage.GetAsync(key.WithoutVersion()).ConfigureAwait(false);
+            if (current != null && current.IsPresent)
+            {
+                var patchService = GetFeature<IPatchService>();
+                try
+                {
+                    var resource = patchService.Apply(current.Resource, parameters);
+                    return await PutAsync(Entry.PUT(current.Key.WithoutVersion(), resource)).ConfigureAwait(false);
+                }
+                catch
+                {
+                    return new FhirResponse(HttpStatusCode.BadRequest);
+                }
             }
 
-            Validate.ResourceType(key, resource);
+            return Respond.WithCode(HttpStatusCode.NotFound);
+        }
 
-            var outcome = Validate.AgainstSchema(resource);
-            return Task.FromResult(outcome == null
-                ? Respond.WithCode(HttpStatusCode.OK)
-                : Respond.WithResource(422, outcome));
+        public Task<FhirResponse> ValidateOperationAsync(IKey key, Resource resource)
+        {
+            throw new NotImplementedException();
         }
 
         public async Task<FhirResponse> VersionReadAsync(IKey key)
@@ -304,6 +326,7 @@ namespace Spark.Engine.Service
             return Respond.WithResource(HttpStatusCode.Created, result);
         }
 
+        // TODO: Remove this when we have split interfaces into synchronous and asynchronous conunterparts
         public FhirResponse HandleInteraction(Entry interaction)
         {
             return Task.Run(() => HandleInteractionAsync(interaction)).GetAwaiter().GetResult();
@@ -330,24 +353,11 @@ namespace Spark.Engine.Service
                     return Respond.WithCode(HttpStatusCode.NoContent);
                 case Bundle.HTTPVerb.GET:
                     return await VersionReadAsync((Key)interaction.Key).ConfigureAwait(false);
+                case Bundle.HTTPVerb.PATCH:
+                    return await PatchAsync(interaction.Key, interaction.Resource as Parameters).ConfigureAwait(false);
                 default:
                     return Respond.Success;
             }
-        }
-
-        private static void ValidateKey(IKey key, bool withVersion = false)
-        {
-            Validate.HasTypeName(key);
-            Validate.HasResourceId(key);
-            if (withVersion)
-            {
-                Validate.HasVersion(key);
-            }
-            else
-            {
-                Validate.HasNoVersion(key);
-            }
-            Validate.Key(key);
         }
 
         private async Task<FhirResponse> CreateSnapshotResponseAsync(Snapshot snapshot, int pageIndex = 0)
@@ -372,17 +382,11 @@ namespace Spark.Engine.Service
             }
         }
 
-        private T GetFeature<T>() where T : IFhirServiceExtension
-        {
-            return FindExtension<T>() ??
-                   throw new NotSupportedException($"Feature {typeof(T)} not supported");
-        }
-
         internal async Task<Entry> StoreAsync(Entry entry)
         {
             var result = await GetFeature<IResourceStorageService>()
                 .AddAsync(entry).ConfigureAwait(false);
-            await _serviceListener.InformAsync(entry);
+            await _serviceListener.InformAsync(entry).ConfigureAwait(false);
             return result;
         }
     }

@@ -2,28 +2,22 @@
 
     <PropertyGroup>
         <TargetFrameworks>netstandard2.0;net461</TargetFrameworks>
-        <PackageId>Spark.Engine.R4</PackageId>
-        <Version>1.5.2</Version>
-        <Copyright>Copyright © Firely 2014, © Kufu 2018</Copyright>
-        <Company>Firely and Kufu</Company>
-        <Authors>Firely, Kufu and contributors</Authors>
-        <Product>Spark.Engine.R4</Product>
-        <Description>FHIR Server Engine - handling REST calls and service layer</Description>
-        <PackageLicenseFile>LICENSE</PackageLicenseFile>
         <LangVersion>8.0</LangVersion>
+        <PackageId>Spark.Engine.R4</PackageId>
+        <Product>Spark.Engine.R4</Product>
+        <Description>FHIR Server Engine - Handling REST Calls and Service Layer</Description>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Fhir.Metrics" Version="1.2.0" />
-        <PackageReference Include="Hl7.Fhir.R4" Version="2.0.1" />
+        <PackageReference Include="Fhir.Metrics" Version="1.2.1" />
+        <PackageReference Include="Hl7.Fhir.R4" Version="3.4.0" />
         <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.8" />
-        <PackageReference Include="System.Security.Cryptography.Xml" Version="4.7.0" />
-        <None Include="..\..\LICENSE" Pack="true" Visible="false" PackagePath="" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.18" />
+        <PackageReference Include="System.Security.Cryptography.Xml" Version="5.0.0" />
     </ItemGroup>
 
     <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-        <PackageReference Include="Microsoft.AspNetCore.Mvc.WebApiCompatShim" Version="2.1.3" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.WebApiCompatShim" Version="2.2.0" />
         <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.7" />
     </ItemGroup>
 

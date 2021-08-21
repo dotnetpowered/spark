@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.WebUtilities;
 using Spark.Core;
+using Spark.Engine.Core;
 using Spark.Engine.Extensions;
 using Spark.Engine.IO;
 using System;
@@ -27,14 +28,13 @@ namespace Spark.Engine.Formatters
             SupportedEncodings.Clear();
             SupportedEncodings.Add(Encoding.UTF8);
 
-            SupportedMediaTypes.Add("application/xml");
-            SupportedMediaTypes.Add("application/fhir+xml");
-            SupportedMediaTypes.Add("application/xml+fhir");
-            SupportedMediaTypes.Add("text/xml");
-            SupportedMediaTypes.Add("text/xml+fhir");
+            foreach (var mediaType in FhirMediaType.XmlMimeTypes)
+            {
+                SupportedMediaTypes.Add(mediaType);
+            }
         }
 
-        [Obsolete("This constructor is obsolete and will be removed in a future version.")]
+        [Obsolete("This constructor is obsolete. Please use constructor with signature ctor(FhirXmlParser)")]
         public ResourceXmlInputFormatter()
         {
             _parser = new FhirXmlParser();
@@ -42,11 +42,10 @@ namespace Spark.Engine.Formatters
             SupportedEncodings.Clear();
             SupportedEncodings.Add(Encoding.UTF8);
 
-            SupportedMediaTypes.Add("application/xml");
-            SupportedMediaTypes.Add("application/fhir+xml");
-            SupportedMediaTypes.Add("application/xml+fhir");
-            SupportedMediaTypes.Add("text/xml");
-            SupportedMediaTypes.Add("text/xml+fhir");
+            foreach (var mediaType in FhirMediaType.XmlMimeTypes)
+            {
+                SupportedMediaTypes.Add(mediaType);
+            }
         }
 
         protected override bool CanReadType(Type type)
@@ -77,12 +76,10 @@ namespace Spark.Engine.Formatters
             try
             {
                 // Using a NonDisposableStream so that we do not close or dispose of HttpRequest.Body stream that we do not own.
-                using (var xmlReader = XmlDictionaryReader.CreateTextReader(new NonDisposableStream(request.Body), encoding, XmlDictionaryReaderQuotas.Max, onClose: null))
-                {
-                    var resource = _parser.Parse(xmlReader);
-                    context.HttpContext.AddResourceType(resource.GetType());
-                    return InputFormatterResult.Success(resource);
-                }
+                using XmlDictionaryReader xmlReader = XmlDictionaryReader.CreateTextReader(new NonDisposableStream(request.Body), encoding, XmlDictionaryReaderQuotas.Max, onClose: null);
+                var resource = _parser.Parse(xmlReader);
+                context.HttpContext.AddResourceType(resource.GetType());
+                return InputFormatterResult.Success(resource);
             }
             catch (FormatException exception)
             {
