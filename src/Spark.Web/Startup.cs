@@ -101,28 +101,6 @@ namespace Spark.Web
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "Spark API", Version = "v1" });
             });
-
-            // Make validation errors to be returned as application/json or application/xml
-            // instead of application/problem+json and application/problem+xml.
-            // (https://github.com/FirelyTeam/spark/issues/282)
-            services.Configure<ApiBehaviorOptions>(options =>
-            {
-                var defaultInvalidModelStateResponseFactory = options.InvalidModelStateResponseFactory;
-                options.InvalidModelStateResponseFactory = context =>
-                {
-                    var actionResult = defaultInvalidModelStateResponseFactory(context) as ObjectResult;
-                    if (actionResult != null)
-                    {
-                        actionResult.ContentTypes.Clear();
-                        foreach (var mediaType in ResourceJsonOutputFormatter.JsonMediaTypes
-                            .Concat(ResourceXmlOutputFormatter.XmlMediaTypes))
-                        {
-                            actionResult.ContentTypes.Add(mediaType);
-                        }
-                    }
-                    return actionResult;
-                };
-            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
