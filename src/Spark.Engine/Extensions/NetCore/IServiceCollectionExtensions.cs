@@ -7,18 +7,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Spark.Engine.Core;
 using Spark.Engine.FhirResponseFactory;
+using Spark.Engine.Filters;
 using Spark.Engine.Formatters;
 using Spark.Engine.Interfaces;
 using Spark.Engine.Search;
 using Spark.Engine.Service;
 using Spark.Engine.Service.FhirServiceExtensions;
-using Spark.Formatters;
 using Spark.Service;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Net.Http.Formatting;
-using Spark.Engine.Search;
+using System.Linq;
 
 namespace Spark.Engine.Extensions
 {
@@ -30,9 +29,10 @@ namespace Spark.Engine.Extensions
 
             services.AddFhirHttpSearchParameters();
 
+            services.SetContentTypeAsFhirMediaTypeOnValidationError();
+
             services.TryAddSingleton<SparkSettings>(settings);
             services.TryAddTransient<ElementIndexer>();
-
 
             services.TryAddTransient<IReferenceNormalizationService, ReferenceNormalizationService>();
 
@@ -57,13 +57,14 @@ namespace Spark.Engine.Extensions
             services.TryAddTransient<PagingService>();                     // paging
             services.TryAddTransient<ResourceStorageService>();            // storage
             services.TryAddTransient<CapabilityStatementService>();        // conformance
+            services.TryAddTransient<PatchService>();           // patch
             services.TryAddTransient<ICompositeServiceListener, ServiceListener>();
             services.TryAddTransient<ResourceJsonInputFormatter>();
             services.TryAddTransient<ResourceJsonOutputFormatter>();
             services.TryAddTransient<ResourceXmlInputFormatter>();
             services.TryAddTransient<ResourceXmlOutputFormatter>();
 
-            services.AddTransient((provider) => new IFhirServiceExtension[] 
+            services.AddTransient((provider) => new IFhirServiceExtension[]
             {
                 provider.GetRequiredService<SearchService>(),
                 provider.GetRequiredService<TransactionService>(),
@@ -71,6 +72,7 @@ namespace Spark.Engine.Extensions
                 provider.GetRequiredService<PagingService>(),
                 provider.GetRequiredService<ResourceStorageService>(),
                 provider.GetRequiredService<CapabilityStatementService>(),
+                provider.GetRequiredService<PatchService>(),
             });
 
             services.TryAddSingleton((provider) => new FhirJsonParser(settings.ParserSettings));
@@ -78,7 +80,9 @@ namespace Spark.Engine.Extensions
             services.TryAddSingleton((provder) => new FhirJsonSerializer(settings.SerializerSettings));
             services.TryAddSingleton((provder) => new FhirXmlSerializer(settings.SerializerSettings));
 
+#pragma warning disable CS0618 // Type or member is obsolete
             services.TryAddSingleton<IFhirService, FhirService>();
+#pragma warning restore CS0618 // Type or member is obsolete
             services.TryAddSingleton<IAsyncFhirService, AsyncFhirService>();
 
             IMvcCoreBuilder builder = services.AddFhirFormatters(settings, setupAction);
@@ -98,12 +102,26 @@ namespace Spark.Engine.Extensions
 
             return services.AddMvcCore(options =>
             {
-                options.InputFormatters.Add(new ResourceJsonInputFormatter(new FhirJsonParser(settings.ParserSettings), ArrayPool<char>.Shared));
-                options.InputFormatters.Add(new ResourceXmlInputFormatter(new FhirXmlParser(settings.ParserSettings)));
-                options.InputFormatters.Add(new BinaryInputFormatter());
-                options.OutputFormatters.Add(new ResourceJsonOutputFormatter());
-                options.OutputFormatters.Add(new ResourceXmlOutputFormatter());
-                options.OutputFormatters.Add(new BinaryOutputFormatter());
+                options.Filters.Add<UnsupportedMediaTypeFilter>(-3001);
+
+                if (settings.UseAsynchronousIO)
+                {
+                    options.InputFormatters.Add(new AsyncResourceJsonInputFormatter(new FhirJsonParser(settings.ParserSettings)));
+                    options.InputFormatters.Add(new AsyncResourceXmlInputFormatter(new FhirXmlParser(settings.ParserSettings)));
+                    options.InputFormatters.Add(new BinaryInputFormatter());
+                    options.OutputFormatters.Add(new AsyncResourceJsonOutputFormatter());
+                    options.OutputFormatters.Add(new AsyncResourceXmlOutputFormatter());
+                    options.OutputFormatters.Add(new BinaryOutputFormatter());
+                }
+                else
+                {
+                    options.InputFormatters.Add(new ResourceJsonInputFormatter(new FhirJsonParser(settings.ParserSettings), ArrayPool<char>.Shared));
+                    options.InputFormatters.Add(new ResourceXmlInputFormatter(new FhirXmlParser(settings.ParserSettings)));
+                    options.InputFormatters.Add(new BinaryInputFormatter());
+                    options.OutputFormatters.Add(new ResourceJsonOutputFormatter());
+                    options.OutputFormatters.Add(new ResourceXmlOutputFormatter());
+                    options.OutputFormatters.Add(new BinaryOutputFormatter());
+                }
 
                 options.RespectBrowserAcceptHeader = true;
 
@@ -144,6 +162,31 @@ namespace Spark.Engine.Extensions
                 , new ModelInfo.SearchParamDefinition { Resource = "Resource", Name = "_tag", Type = SearchParamType.Token, Path = new string[] { "Resource.meta.tag" } }
                 , new ModelInfo.SearchParamDefinition { Resource = "Resource", Name = "_profile", Type = SearchParamType.Uri, Path = new string[] { "Resource.meta.profile" } }
                 , new ModelInfo.SearchParamDefinition { Resource = "Resource", Name = "_security", Type = SearchParamType.Token, Path = new string[] { "Resource.meta.security" } }
+            });
+        }
+
+        private static void SetContentTypeAsFhirMediaTypeOnValidationError(this IServiceCollection services)
+        {
+            // Validation errors need to be returned as application/json or application/xml
+            // instead of application/problem+json and application/problem+xml.
+            // (https://github.com/FirelyTeam/spark/issues/282)
+            services.Configure<ApiBehaviorOptions>(options =>
+            {
+                var defaultInvalidModelStateResponseFactory = options.InvalidModelStateResponseFactory;
+                options.InvalidModelStateResponseFactory = context =>
+                {
+                    var actionResult = defaultInvalidModelStateResponseFactory(context) as ObjectResult;
+                    if (actionResult != null)
+                    {
+                        actionResult.ContentTypes.Clear();
+                        foreach (var mediaType in FhirMediaType.JsonMimeTypes
+                            .Concat(FhirMediaType.XmlMimeTypes))
+                        {
+                            actionResult.ContentTypes.Add(mediaType);
+                        }
+                    }
+                    return actionResult;
+                };
             });
         }
     }

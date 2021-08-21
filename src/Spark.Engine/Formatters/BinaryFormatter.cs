@@ -24,7 +24,7 @@ namespace Spark.Formatters
     {
         public BinaryFhirFormatter() : base()
         {
-            SupportedMediaTypes.Add(new MediaTypeHeaderValue(FhirMediaType.OCTET_STREAM_CONTENT_HEADER));
+            SupportedMediaTypes.Add(new MediaTypeHeaderValue(FhirMediaType.OctetStreamMimeType));
         }
 
         public override bool CanReadType(Type type)
@@ -34,7 +34,7 @@ namespace Spark.Formatters
 
         public override bool CanWriteType(Type type)
         {
-            return type == typeof(Binary)  || type == typeof(FhirResponse);
+            return type == typeof(Binary) || type == typeof(FhirResponse);
         }
 
         public override Tasks.Task<object> ReadFromStreamAsync(Type type, Stream readStream, HttpContent content, IFormatterLogger formatterLogger)

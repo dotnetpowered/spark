@@ -1,6 +1,5 @@
 ﻿using Hl7.Fhir.Model;
 using System;
-using Hl7.Fhir.Rest;
 using Spark.Engine.Extensions;
 
 namespace Spark.Engine.Core
@@ -55,7 +54,7 @@ namespace Spark.Engine.Core
                 if (Resource != null)
                 {
                     if (Resource.Meta == null) Resource.Meta = new Meta();
-                    Resource.Meta.LastUpdated = value;
+                    Resource.Meta.LastUpdated = value?.TruncateToMillis();
                 }
                 else
                 {
@@ -76,12 +75,12 @@ namespace Spark.Engine.Core
             }
             else
             {
-                this.Key = key;
+                Key = key;
             }
-            this.Resource = resource;
-            this.Method = method;
-            this.When = when ?? DateTimeOffset.Now;
-            this.State = EntryState.Undefined;
+            Resource = resource;
+            Method = method;
+            When = when ?? DateTimeOffset.Now;
+            State = EntryState.Undefined;
         }
 
 
@@ -105,7 +104,7 @@ namespace Spark.Engine.Core
         /// </summary>
         public static Entry DELETE(IKey key, DateTimeOffset? when)
         {
-            return Entry.Create(Bundle.HTTPVerb.DELETE, key, DateTimeOffset.UtcNow);
+            return Create(Bundle.HTTPVerb.DELETE, key, DateTimeOffset.UtcNow);
         }
         
         public bool IsDelete 
@@ -118,7 +117,6 @@ namespace Spark.Engine.Core
             {
                 Method = Bundle.HTTPVerb.DELETE;
                 Resource = null;
-
             }
         }
 
@@ -132,27 +130,22 @@ namespace Spark.Engine.Core
 
         public static Entry POST(IKey key, Resource resource)
         {
-            return Entry.Create(Bundle.HTTPVerb.POST, key, resource);
+            return Create(Bundle.HTTPVerb.POST, key, resource);
         }
 
         public static Entry POST(Resource resource)
         {
-            return Entry.Create(Bundle.HTTPVerb.POST, resource);
+            return Create(Bundle.HTTPVerb.POST, resource);
         }
 
         public static Entry PUT(IKey key, Resource resource)
         {
-            return Entry.Create(Bundle.HTTPVerb.PUT, key, resource);
+            return Create(Bundle.HTTPVerb.PUT, key, resource);
         }
-
-        //public static Interaction GET(IKey key)
-        //{
-        //    return new Interaction(Bundle.HTTPVerb.GET, key, null, null);
-        //}
 
         public override string ToString()
         {
-            return string.Format("{0} {1}", this.Method, this.Key);
+            return string.Format("{0} {1}", Method, Key);
         }
     }
 

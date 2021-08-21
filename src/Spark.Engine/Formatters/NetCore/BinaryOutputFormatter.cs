@@ -13,7 +13,7 @@ namespace Spark.Engine.Formatters
     {
         public BinaryOutputFormatter()
         {
-            SupportedMediaTypes.Add(FhirMediaType.OCTET_STREAM_CONTENT_HEADER);
+            SupportedMediaTypes.Add(FhirMediaType.OctetStreamMimeType);
         }
 
         protected override bool CanWriteType(Type type)
@@ -37,6 +37,7 @@ namespace Spark.Engine.Formatters
                 }
                 if (binary == null) return;
 
+                context.HttpContext.Response.Headers.Add(HttpHeaderName.CONTENT_DISPOSITION, "attachment");
                 context.HttpContext.Response.ContentType = binary.ContentType;
 
                 Stream stream = new MemoryStream(binary.Data);

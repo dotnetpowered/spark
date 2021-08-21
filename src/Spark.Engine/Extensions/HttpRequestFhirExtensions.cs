@@ -14,6 +14,7 @@ using Hl7.Fhir.Model;
 using Spark.Engine.Core;
 using Hl7.Fhir.Rest;
 using Hl7.Fhir.Utility;
+using Spark.Engine.Utility;
 using Spark.Formatters;
 using System.Collections.Specialized;
 using System.Runtime.CompilerServices;
@@ -43,6 +44,19 @@ namespace Spark.Engine.Extensions
         }
 
 #if NETSTANDARD2_0
+        public static int GetPagingOffsetParameter(this HttpRequest request)
+        {
+            var offset = FhirParameterParser.ParseIntParameter(request.GetParameter(FhirParameter.OFFSET));
+            if (!offset.HasValue)
+            {
+                // This part is kept as backwards compatibility for the "start" parameter which was used as an offset
+                // in earlier versions of Spark.
+                offset = FhirParameterParser.ParseIntParameter(request.GetParameter(FhirParameter.SNAPSHOT_INDEX));
+            }
+
+            return offset.HasValue ? offset.Value : 0;
+        }
+
         internal static string GetRequestUri(this HttpRequest request)
         {
             var httpRequestFeature = request.HttpContext.Features.Get<IHttpRequestFeature>();
@@ -137,6 +151,13 @@ namespace Spark.Engine.Extensions
                 return false;
         }
 
+        internal static bool IsRawBinaryRequest(this HttpRequest request)
+        {
+            var ub = new UriBuilder(request.GetRequestUri());
+            return ub.Path.Contains("Binary")
+                && !ub.Path.EndsWith("_search");
+        }
+
         internal static bool IsRawBinaryPostOrPutRequest(this HttpRequest request)
         {
             var ub = new UriBuilder(request.GetRequestUri());
@@ -151,23 +172,36 @@ namespace Spark.Engine.Extensions
         {
             if (fhirResponse.Key != null)
             {
-                response.Headers.Add("ETag", ETag.Create(fhirResponse.Key.VersionId)?.ToString());
+                response.Headers.Add(HttpHeaderName.ETAG, ETag.Create(fhirResponse.Key.VersionId)?.ToString());
 
                 Uri location = fhirResponse.Key.ToUri();
-                response.Headers.Add("Location", location.OriginalString);
+                response.Headers.Add(HttpHeaderName.LOCATION, location.OriginalString);
 
                 if (response.Body != null)
                 {
-                    response.Headers.Add("Content-Location", location.OriginalString);
+                    response.Headers.Add(HttpHeaderName.CONTENT_LOCATION, location.OriginalString);
                     if (fhirResponse.Resource != null && fhirResponse.Resource.Meta != null)
                     {
-                        response.Headers.Add("Last-Modified", fhirResponse.Resource.Meta.LastUpdated.Value.ToString("R"));
+                        response.Headers.Add(HttpHeaderName.LAST_MODIFIED, fhirResponse.Resource.Meta.LastUpdated.Value.ToString("R"));
                     }
                 }
             }
         }
 
 #endif
+
+        public static int GetOffset(this HttpRequestMessage request)
+        {
+            var offset = FhirParameterParser.ParseIntParameter(request.GetParameter(FhirParameter.OFFSET));
+            if (!offset.HasValue)
+            {
+                // This part is kept as backwards compatibility for the "start" parameter which was used as an offset
+                // in earlier versions of Spark.
+                offset = FhirParameterParser.ParseIntParameter(request.GetParameter(FhirParameter.SNAPSHOT_INDEX));
+            }
+
+            return offset.HasValue ? offset.Value : 0;
+        }
 
         internal static void AcquireHeaders(this HttpResponseMessage response, FhirResponse fhirResponse)
         {
@@ -185,6 +219,10 @@ namespace Spark.Engine.Extensions
                     {
                         response.Content.Headers.LastModified = fhirResponse.Resource.Meta.LastUpdated;
                     }
+                    if(fhirResponse.Resource is Binary)
+                    {
+                        response.Content.Headers.Add(HttpHeaderName.CONTENT_DISPOSITION, "attachment");
+                    }
                 }
             }
         }
@@ -197,8 +235,7 @@ namespace Spark.Engine.Extensions
             {
                 if (includebody)
                 {
-                    Binary binary = fhir.Resource as Binary;
-                    if (binary != null && request.IsRawBinaryRequest(typeof(Binary)))
+                    if (fhir.Resource is Binary binary && request.IsRawBinaryRequest(typeof(Binary)))
                     {
                         return request.CreateResponse(fhir.StatusCode, binary, new BinaryFhirFormatter(), binary.ContentType);
                     }
